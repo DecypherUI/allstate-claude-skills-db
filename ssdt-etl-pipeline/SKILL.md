@@ -309,6 +309,56 @@ WHERE   production_day BETWEEN DATENAME(YEAR, @reportDate) + '-01-01'
 SELECT  ROUND(ytd_value * 1.0 * @totalProdDay / NULLIF(@currentProdDayCnt, 0), 0) AS annualized_value
 ```
 
+### On-Pace Weekly Pool for Trend Charts (Daily-Accumulation Programs)
+
+When building weekly pool rows for a stacked bar chart that shows actual vs on-pace,
+the pool table must contain ALL weeks in the period (not just through the as-of date).
+Each week falls into one of three categories:
+
+```
+@AsOfDate = the latest date with source data
+@PoolFundingRateDec = POOL_FUNDING_RATE_PCT / 100.0 (read from period table, NEVER hardcoded)
+@DailyRate = (TOP 1 TRANSACTIONAL_GDC ORDER BY WEEK_END_DATE DESC WHERE started) / @ElapsedProdDays
+
+COMPLETED week  (END_OF_PERIOD_DATE <= @AsOfDate):
+  ACTUAL_POOL_AMT        = running CW GDC through week end * pool_rate
+  ON_PACE_POOL_AMT       = 0  (actuals are final — nothing to project)
+  IS_INCOMPLETE_PERIOD_IND = 0
+  Chart: solid actual bar only
+
+INCOMPLETE week (START_OF_PERIOD_DATE <= @AsOfDate < END_OF_PERIOD_DATE):
+  ACTUAL_POOL_AMT        = running CW GDC through @AsOfDate * pool_rate (partial)
+  ON_PACE_POOL_AMT       = @DailyRate * prod_days_to_week_end * pool_rate
+  IS_INCOMPLETE_PERIOD_IND = 1
+  Chart: actual bar + on-pace remainder stacked on top
+  The on-pace slice = the remaining working days in that week projected at the daily rate
+
+FUTURE week     (START_OF_PERIOD_DATE > @AsOfDate):
+  ACTUAL_POOL_AMT        = 0  (no data yet)
+  ON_PACE_POOL_AMT       = @DailyRate * prod_days_to_week_end * pool_rate
+  IS_INCOMPLETE_PERIOD_IND = 1
+  Chart: entirely on-pace bar (no actual component)
+  Each future week is LARGER than the previous because it covers more cumulative prod days
+```
+
+The chart P_INTF__ procedure computes:
+```sql
+COLUMN_1 = ACTUAL_POOL_AMT
+COLUMN_2 = CASE WHEN ON_PACE_POOL_AMT > ACTUAL_POOL_AMT
+                THEN ON_PACE_POOL_AMT - ACTUAL_POOL_AMT ELSE 0 END
+```
+
+**Key rules:**
+- On-pace is NEVER computed for completed weeks — actuals are final
+- The daily rate uses the most current actual data (including partial incomplete week)
+- Each future week must show a GROWING on-pace value (more prod days = higher projection)
+- The on-pace slice on the incomplete week equals exactly the remaining working days * daily rate * pool rate
+- Percentages (payout rates) are stored as whole numbers (24.0 = 24%), not decimals (0.24)
+- Pool funding rate (e.g. 12%) must be read from the period config table, NEVER hardcoded
+- **CRITICAL: Never ORDER BY identity/surrogate keys (TIME_ID, etc.)** — always ORDER BY date columns (WEEK_END_DATE, START_OF_PERIOD_DATE, END_OF_PERIOD_DATE). Identity columns are internal keys for record identification only; their sequential order is not guaranteed. Use dates for all ordering, comparison, and range logic.
+
+**Reference implementation:** `P_LOAD__APP_AFS_QUARTERLY_INCENTIVE` in `allstate-database-apt`
+
 ### Constraint Validation Before Load
 
 ```sql
