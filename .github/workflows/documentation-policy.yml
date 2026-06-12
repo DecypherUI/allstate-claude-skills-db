@@ -1,0 +1,18 @@
+name: Documentation Policy
+
+on:
+  pull_request:
+    branches: [main, master, preprod]
+  push:
+    branches: [main, master, preprod]
+
+jobs:
+  documentation-policy:
+    name: PRD and documentation placement
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check PRD/documentation policy
+        run: python3 .github/scripts/prd_policy_check.py
