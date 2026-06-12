@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Enforce Decypher PRD placement/date rules with readable messages.
+"""Enforce Decypher PRD/documentation placement and date-stamped filenames.
 
 Rules:
 - Active PRDs: documents/prds/YYYY-MM-DD-short-title.md
 - Completed PRDs: documents/prds/archive/YYYY-MM-DD-short-title.md
 
-Legacy invalid PRDs already on the target branch are reported as warnings. New or changed
-invalid PRDs in a PR are errors. This keeps rollout from turning old repositories red while
-still preventing new PRD drift.
+This is intentionally a hard CI gate. Existing legacy violations fail too: the goal is to
+make incorrect documentation placement visible before branch protection makes the check
+unmergeable.
 """
 from __future__ import annotations
-import os
 import re
 import subprocess
 import sys
@@ -30,17 +29,6 @@ def git(*args: str) -> str:
 def tracked_files() -> list[Path]:
     return [Path(x) for x in git("ls-files").splitlines() if x]
 
-def changed_files() -> set[str]:
-    base = os.environ.get("GITHUB_BASE_REF")
-    if not base:
-        return set()
-    try:
-        subprocess.run(["git", "fetch", "--no-tags", "--depth=1", "origin", base], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        out = git("diff", "--name-only", f"origin/{base}...HEAD")
-        return {x for x in out.splitlines() if x}
-    except Exception:
-        return set()
-
 def looks_like_prd(rel: Path) -> bool:
     s = rel.as_posix()
     if rel.suffix.lower() not in {".md", ".markdown"}:
@@ -53,39 +41,39 @@ def looks_like_prd(rel: Path) -> bool:
         return False
     return bool(PRD_HEADING_RE.search(text))
 
-def violations(rel: Path) -> list[str]:
+def add_error(msg: str) -> None:
+    ERRORS.append(msg)
+
+def validate_prd(rel: Path) -> None:
     s = rel.as_posix()
-    out=[]
     if not s.startswith(ALLOWED_PREFIXES):
-        out.append(
-            f"{s}: PRD is in the wrong folder. Active PRDs belong in documents/prds/; completed PRDs belong in documents/prds/archive/."
+        add_error(
+            f"{s}: PRD is in the wrong folder. Active PRDs must be in documents/prds/; completed PRDs must be in documents/prds/archive/. Move this file and date-stamp the filename."
         )
-        return out
+        return
     if not DATE_RE.match(rel.name):
-        out.append(f"{s}: PRD filename must start with YYYY-MM-DD-, for example documents/prds/2026-06-12-feature-name.md.")
+        add_error(
+            f"{s}: PRD filename must start with YYYY-MM-DD-, for example documents/prds/2026-06-12-feature-name.md."
+        )
     if s.startswith("documents/prds/") and not s.startswith("documents/prds/archive/") and rel.parent.as_posix() != "documents/prds":
-        out.append(f"{s}: active PRDs must be directly under documents/prds/. Use documents/prds/archive/ only for completed PRDs.")
-    return out
+        add_error(f"{s}: active PRDs must be directly under documents/prds/. Use documents/prds/archive/ only for completed PRDs.")
 
 def main() -> int:
-    changed = changed_files()
     prds = [p for p in tracked_files() if looks_like_prd(p)]
     for rel in prds:
-        for msg in violations(rel):
-            if rel.as_posix() in changed:
-                ERRORS.append(msg + " Move/rename this PRD before merging this PR.")
-            else:
-                WARNINGS.append("Legacy PRD convention issue: " + msg)
+        validate_prd(rel)
     if not (ROOT / "documents" / "prds").exists():
-        WARNINGS.append("documents/prds/ does not exist yet; create it when adding active PRDs.")
+        WARNINGS.append("documents/prds/ does not exist yet; create it before adding active PRDs.")
     for warning in WARNINGS:
         print(f"::warning::{warning}")
     if ERRORS:
-        print("PRD policy check failed. New or changed PRDs must follow Decypher's PRD location/name convention:")
+        print("PRD/documentation policy check failed. Decypher documentation must live in the standard project folders so reviewers and agents can find it:")
+        print("  Active PRDs:    documents/prds/YYYY-MM-DD-short-title.md")
+        print("  Completed PRDs: documents/prds/archive/YYYY-MM-DD-short-title.md")
         for error in ERRORS:
             print(f"::error::{error}")
         return 1
-    print(f"PRD policy checks passed ({len(prds)} PRD-like markdown file(s) checked; legacy issues are warnings only)")
+    print(f"PRD/documentation policy checks passed ({len(prds)} PRD-like markdown file(s) checked)")
     return 0
 
 if __name__ == "__main__":
