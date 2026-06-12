@@ -1,0 +1,25 @@
+name: Repository Policy CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    name: Repository Policy CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run PRD policy check
+        run: python3 .github/scripts/prd_policy_check.py
+
+      - name: Run repository policy checks
+        run: python3 .github/scripts/repository_policy_check.py
