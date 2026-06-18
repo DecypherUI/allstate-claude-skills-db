@@ -45,7 +45,7 @@ def main() -> int:
     prds = [p for p in tracked_files() if looks_like_prd(p)]
     for rel in prds: validate_prd(rel)
     if not (ROOT / "documents" / "prds").exists():
-        WARNINGS.append("documents/prds/ does not exist yet; create it before adding active PRDs.")
+        ERRORS.append("documents/prds/ is required. Projects must be fully documented with active PRDs in documents/prds/ and completed PRDs in documents/prds/archive/.")
     for warning in WARNINGS: print(f"::warning::{warning}")
     if ERRORS:
         print("PRD/documentation policy check failed. Decypher documentation must live in the standard project folders so reviewers and agents can find it:")
