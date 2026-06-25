@@ -21,6 +21,7 @@ Claude Code automatically discovers and applies these skills when working in tho
 | `ssdt-table-design` | Table creation (audit columns, soft delete, FK/PK/index naming, data types) |
 | `ssdt-view-design` | View creation (naming, hierarchy flattening, column contracts) |
 | `ssdt-deployment` | Deploy without Visual Studio (sqlcmd, Docker, dependency ordering) |
+| `ssdt-deployment-package` | Build the change deployment zip for the DBA (changed SSDT files only, `Application\` root, no `DEPLOY_UPDATE.sql`) |
 | `ssdt-post-deploy-data` | Idempotent data seeding (IF NOT EXISTS, MERGE, bulk insert) |
 | `ssdt-dynamic-sql` | Pagination, sorting UDT, sp_executesql, dynamic pivot |
 | `ssdt-etl-pipeline` | P_LOAD__/P_ETL__ staging, upsert, time-partitioned loads, rollups |
