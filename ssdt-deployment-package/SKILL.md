@@ -20,7 +20,7 @@ The recipient copies the files into their own clone of the SSDT project (identic
 ## Naming & location
 
 - **Output folder:** the workspace-level `deploy_output\` directory (sibling to the repo clones, e.g. `C:\Workspace\git\allstate\apt\deploy_output\`).
-- **Filename:** `apt_db_changes_YYYYMMDD.zip` (APT). EFS uses the **same format** with its own project-appropriate prefix. `YYYYMMDD` = today's date. If you build more than one on the same day, the date alone is usually enough; add a `_NN` suffix only if you must disambiguate.
+- **Filename:** `apt_db_changes_YYYYMMDD_HHMMSS.zip` (APT). EFS uses the **same format** with its own project-appropriate prefix. `YYYYMMDD_HHMMSS` = the date **and 24-hour local time** the package was built (e.g. `apt_db_changes_20260625_212857.zip`). The time component is required so multiple packages built the same day during iterative testing are uniquely identifiable and sortable (the old date-only name collided/overwrote). Get the stamp with PowerShell `Get-Date -Format 'yyyyMMdd_HHmmss'`.
 
 ## Deriving the changed-file set
 
@@ -65,8 +65,9 @@ find "$STAGE/Application" -type f | sort   # eyeball the list — no docs, no DE
 **2. Zip (PowerShell)** — `Application\` at the zip root:
 
 ```powershell
+$ts    = Get-Date -Format 'yyyyMMdd_HHmmss'                       # date + 24h local time
 $stage = "<scratchpad>\db_pkg_YYYYMMDD"
-$dest  = "<workspace>\deploy_output\apt_db_changes_YYYYMMDD.zip"
+$dest  = "<workspace>\deploy_output\apt_db_changes_$ts.zip"        # e.g. apt_db_changes_20260625_212857.zip
 Compress-Archive -Path (Join-Path $stage "Application") -DestinationPath $dest -Force
 $entries = [System.IO.Compression.ZipFile]::OpenRead($dest).Entries
 "size bytes: " + (Get-Item $dest).Length
